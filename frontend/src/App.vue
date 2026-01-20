@@ -24,12 +24,38 @@
 
     <!-- Search & Filter -->
     <section class="search-card">
-      <input
-        v-model="searchQuery"
-        type="text"
-        placeholder="Search here"
-        class="search-input"
-      />
+      <div class="search-wrapper">
+        <input
+          v-model="searchQuery"
+          type="text"
+          placeholder="Search by category or description"
+          class="search-input"
+        />
+
+        <!-- Clear button -->
+        <button
+          v-if="searchQuery"
+          class="clear-btn"
+          @click="searchQuery = ''"
+          aria-label="Clear search"
+        >
+          <!-- X icon (SVG) -->
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
     </section>
 
     <div class="main-layout">
@@ -127,8 +153,13 @@
               <tr v-for="item in filteredTransactions" :key="item.id">
                 <td class="date-cell">{{ formatDate(item.transaction_date) }}</td>
                 <td class="desc-cell">{{ item.description }}</td>
-                <td>
-                  <span class="category-badge" :class="getCategoryClass(item.category)">
+                <td class="desc-cell">
+                  <span
+                    class="category-badge clickable"
+                    :class="getCategoryClass(item.category)"
+                    @click="filterByCategory(item.category)"
+                    title="Filter by category"
+                  >
                     {{ item.category }}
                   </span>
                 </td>
@@ -332,6 +363,10 @@ const getCategoryClass = (category) => {
     default:
       return 'badge-other'
   }
+};
+
+const filterByCategory = (category) => {
+  searchQuery.value = category.toLowerCase();
 };
 
 // --- TOAST STATE ---
@@ -665,12 +700,30 @@ select {
   box-shadow: 0 10px 25px rgba(0,0,0,0.02);
 }
 
+.search-wrapper {
+  position: relative;
+  width: 100%;
+}
+
 .search-input {
   width: 100%;
-  padding: 14px 16px;
-  border-radius: 10px;
-  border: 1px solid #dcdfe4;
-  font-size: 16px;
+  padding-right: 40px; /* space for X button */
+}
+
+.clear-btn {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #888;
+  padding: 4px;
+}
+
+.clear-btn:hover {
+  color: #333;
 }
 
 .category-badge {
@@ -718,6 +771,15 @@ select {
 
 .badge-other {
   background-color: #ECEFF1; /* cloud grey */
+}
+
+.category-badge.clickable {
+  cursor: pointer;
+}
+
+.category-badge.clickable:hover {
+  opacity: 0.85;
+  transform: scale(1.05);
 }
 
 /* Responsive adjustments */
