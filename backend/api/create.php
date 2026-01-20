@@ -8,6 +8,7 @@ $data = json_decode(file_get_contents("php://input"), true);
 // Validate required fields
 if (
     empty($data["description"]) ||
+    empty($data["category"]) ||
     empty($data["amount"]) ||
     empty($data["currency"]) ||
     empty($data["transaction_date"])
@@ -29,6 +30,7 @@ $stmt = $conn->prepare(
 $stmt->bind_param(
     "sdss",
     $data["description"],
+    $data["category"],
     $data["amount"],
     $data["currency"],
     $data["transaction_date"]

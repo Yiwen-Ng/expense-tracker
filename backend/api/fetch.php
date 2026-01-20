@@ -3,7 +3,7 @@ require_once "../config/database.php";
 
 // SQL query to fetch all transactions and ordered by latest transaction date first
 $result = $conn->query(
-    "SELECT id, description, amount, currency, transaction_date
+    "SELECT id, description, category, amount, currency, transaction_date
      FROM transactions
      ORDER BY transaction_date DESC"
 );

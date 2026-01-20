@@ -35,8 +35,24 @@
             <input v-model="form.description" type="text" placeholder="What was this for?" required />
           </div>
 
-          <div class="input-row">
+          <!-- Category -->
+          <div class="input-field">
+            <label>Category</label>
+            <select v-model="form.category" required>
+              <option value="">Select category</option>
+              <option value="Food">Food</option>
+              <option value="Transportation">Transportation</option>
+              <option value="Shopping">Shopping</option>
+              <option value="Healthcare">Healthcare</option>
+              <option value="Insurance">Insurance</option>
+              <option value="Utilities">Utilities</option>
+              <option value="Travel">Travel</option>
+              <option value="Entertainment">Entertainment</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
 
+          <div class="input-row">
             <!-- Amount -->
             <div class="input-field">
               <label>Amount</label>
@@ -92,6 +108,7 @@
               <tr>
                 <th>Date</th>
                 <th>Description</th>
+                <th>Category</th>
                 <th class="text-right">Amount</th>
                 <th>Action</th>
               </tr>
@@ -101,6 +118,7 @@
               <tr v-for="item in filteredTransactions" :key="item.id">
                 <td class="date-cell">{{ formatDate(item.transaction_date) }}</td>
                 <td class="desc-cell">{{ item.description }}</td>
+                <td class="desc-cell">{{ item.category }}</td>
                 <td class="amount-cell" :class="item.amount >= 0 ? 'positive' : 'negative'">
                   {{ item.currency }} {{ formatCurrency(item.amount) }}
                 </td>
@@ -160,6 +178,7 @@ const summaryData = ref([]);    // Store the summary (totals per currency)
 // Represent the data currently sitting in input boxes
 const form = ref({
   description: '',
+  category: '',  
   amount: '',
   currency: 'MYR',
   transaction_date: new Date().toISOString().split('T')[0]    // Set the date input to 'today' by default
@@ -206,6 +225,7 @@ const submitForm = async () => {
       // Reset form and clear the form back to empty / defaults
       form.value = { 
         description: '', 
+        category: '',
         amount: '', 
         currency: 'MYR', 
         transaction_date: new Date().toISOString().split('T')[0] 
