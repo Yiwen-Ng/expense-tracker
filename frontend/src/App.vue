@@ -81,6 +81,7 @@
                 <th>Date</th>
                 <th>Description</th>
                 <th class="text-right">Amount</th>
+                <th>Action</th>
               </tr>
             </thead>
             
@@ -88,8 +89,29 @@
               <tr v-for="item in transactions" :key="item.id">
                 <td class="date-cell">{{ formatDate(item.transaction_date) }}</td>
                 <td class="desc-cell">{{ item.description }}</td>
-                <td class="amount-cell text-right" :class="item.amount >= 0 ? 'positive' : 'negative'">
+                <td class="amount-cell" :class="item.amount >= 0 ? 'positive' : 'negative'">
                   {{ item.currency }} {{ formatCurrency(item.amount) }}
+                </td>
+                <td class="action-cell">
+                  <button @click="deleteTransaction(item.id)" class="delete-btn" title="Delete Transaction">
+                    <svg 
+                      xmlns="http://www.w3.org/2000/svg" 
+                      width="18" 
+                      height="18" 
+                      viewBox="0 0 24 24" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      stroke-width="2" 
+                      stroke-linecap="round" 
+                      stroke-linejoin="round"
+                    >
+                      <path d="M3 6h18"></path>
+                      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                      <line x1="10" y1="11" x2="10" y2="17"></line>
+                      <line x1="14" y1="11" x2="14" y2="17"></line>
+                    </svg>
+                  </button>
                 </td>
               </tr>
               <tr v-if="transactions.length === 0">
@@ -100,8 +122,13 @@
           </table>
         </div>
       </section>
-
     </div>
+
+    <Transition name="slide-up">
+      <div v-if="showToast" class="toast-notification">
+        {{ toastMessage }}
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -170,10 +197,50 @@ const submitForm = async () => {
       
       // Refresh the data so the new row appears in the table
       await loadData();
+
+      triggerToast("Transaction saved successfully !");
     }
   } catch (err) {
     alert("Check your PHP connection/CORS headers!");
   }
+};
+
+// deleteTransaction : Delete a transaction
+const deleteTransaction = async (id) => {
+  // Ask for confirmation so the user doesn't delete by accident
+  if (!confirm("Are you sure you want to delete this?")) return;
+
+  try {
+    const response = await fetch(`${API_BASE}/delete.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: id })
+    });
+
+    if (response.ok) {
+      // Refresh the data to show the updated list and summary
+      await loadData();
+
+      triggerToast("Transaction deleted !");
+    }
+  } catch (err) {
+    console.error("Delete failed:", err);
+  }
+};
+
+// --- TOAST STATE ---
+const showToast = ref(false);
+const toastMessage = ref('');
+
+// Helper function to trigger the notification
+const triggerToast = (msg) => {
+  toastMessage.value = msg;
+  showToast.value = true;
+  
+  // Hide the toast automatically after 3 seconds
+  setTimeout(() => {
+    showToast.value = false;
+  }, 3000);
 };
 
 // --- FORMATTERS ---
@@ -189,19 +256,29 @@ onMounted(loadData);
 <style scoped>
 /* Main Container - Full Screen Width */
 .dashboard-container {
-  width: 190%;
+  /* Theme Variables based on your second image */
+  --bg-beige: #f9f7f2;      /* Light Beige background */
+  --accent-blue: #dbeafe;    /* Soft Sky Blue for summary/accents */
+  --text-dark: #1a1f36;
+  --card-white: #ffffff;
+  --border-soft: #e3e8ee;
+  --dark-blue: #325A71;
+
+  width: 165%;               
   min-height: 100vh;
-  padding: 40px;
+  padding: 20px;
+  background-color: var(--bg-beige);
   box-sizing: border-box;
   font-family: 'Inter', -apple-system, sans-serif;
+  color: var(--text-dark);
 }
 
 /* Header */
 .main-header { margin-bottom: 30px; }
-.brand h1 { margin: 0; color: #1a1f36; font-size: 28px; }
-.brand p { margin: 5px 0 0; color: #4f566b; }
+.brand h1 { margin: 0; color: var(--text-dark); font-size: 28px; font-weight: 700; }
+.brand p { margin: 5px 0 0; color: #697386; }
 
-/* Summary Cards - Flexbox for spacing */
+/* Summary Cards - Light Blue Theme */
 .summary-grid {
   display: flex;
   gap: 20px;
@@ -212,37 +289,38 @@ onMounted(loadData);
 .summary-card {
   flex: 1;
   min-width: 250px;
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 20px;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.02);
-  border: 1px solid #e3e8ee;
+  background: var(--accent-blue); /* Light Blue from your image */
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+  border: 1px solid #c9d9f0;
 }
 
-.currency-label { color: #697386; font-size: 14px; font-weight: 600; }
-.total-amount { margin: 10px 0; font-size: 32px; color: #4318ff; }
-.transaction-count { font-size: 13px; color: #a3aed0; }
+.currency-label { color: var(--dark-blue); font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+.total-amount { margin: 10px 0; font-size: 34px; color: var(--text-dark); font-weight: 800; }
+.transaction-count { font-size: 13px; color: #58667e; }
 
 /* Layout Grid */
 .main-layout {
   display: grid;
-  grid-template-columns: 350px 1fr; /* Form is fixed width, List takes rest */
+  grid-template-columns: 380px 1fr; 
   gap: 30px;
 }
 
-/* Card Style */
+/* White Cards for Form and Table */
 .card {
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 24px;
-  border: 1px solid #e3e8ee;
+  background: var(--card-white);
+  border-radius: 20px;
+  padding: 30px;
+  border: 1px solid var(--border-soft);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.02);
 }
 
-h3 { margin-top: 0; margin-bottom: 20px; color: #1a1f36; }
+h3 { margin-top: 0; margin-bottom: 24px; color: var(--text-dark); font-weight: 700; }
 
 /* Form Styles */
-.transaction-form { display: flex; flex-direction: column; gap: 15px; }
-.input-field { display: flex; flex-direction: column; gap: 6px; }
+.transaction-form { display: flex; flex-direction: column; gap: 18px; }
+.input-field { display: flex; flex-direction: column; gap: 8px; }
 .input-field label { font-size: 13px; font-weight: 600; color: #4f566b; }
 .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
@@ -254,7 +332,7 @@ select {
   border-radius: 10px;       
   background-color: #ffffff;
   font-size: 15px;
-  color: #1a1f36;
+  color: var(--text-dark);
   font-family: inherit;       
   transition: all 0.2s ease;
   box-sizing: border-box;    
@@ -293,8 +371,8 @@ input, select {
 }
 
 .submit-btn {
-  background: #4318ff;
-  color: white;
+  background: var(--accent-blue);
+  color: var(--dark-blue);
   border: none;
   padding: 14px;
   border-radius: 8px;
@@ -306,16 +384,77 @@ input, select {
 
 /* Table Styles */
 .list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.badge { background: #eef2ff; color: #4318ff; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+.badge { background: var(--accent-blue); color: var(--dark-blue); padding: 6px 18px; border-radius: 20px; font-size: 14px; font-weight: bold; }
 
 .data-table { width: 100%; border-collapse: collapse; }
 .data-table th { text-align: left; padding: 12px; border-bottom: 2px solid #f4f7fe; color: #a3aed0; font-size: 13px; }
-.data-table td { padding: 16px 12px; border-bottom: 1px solid #f4f7fe; color: #1a1f36; }
+.data-table td { padding: 18px 16px; border-bottom: 1px solid #f4f7fe; color: var(--text-dark); font-weight: 500; }
 
 .date-cell { color: #697386; width: 100px; }
 .amount-cell { font-weight: 700; }
 .text-right { text-align: right; }
 .positive { color: #059669; }
+
+/* The Delete Button */
+.delete-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted); /* Starts grey to blend in */
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+/* Hover effect: Red Glow */
+.delete-btn:hover {
+  color: #ff5c5c; /* Turns vibrant red */
+  background: rgba(255, 92, 92, 0.1); /* Subtle red background highlight */
+  transform: scale(1.1); /* Slight grow effect */
+}
+
+.toast-notification {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  /* Changed to a lighter, more vibrant purple-blue */
+  background: var(--accent-blue); 
+  color: var(--dark-blue);
+  padding: 14px 28px;
+  border-radius: 16px; /* Slightly rounder for the modern look */
+  font-weight: 500;
+  font-size: 15px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  
+  /* Glassmorphism effect */
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  
+  /* Ensure it looks good on mobile */
+  white-space: nowrap;
+}
+
+/* Animation for the toast sliding up */
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: all 0.4s ease;
+}
+
+.slide-up-enter-from {
+  opacity: 0;
+  transform: translate(-50%, 20px);
+}
+
+.slide-up-leave-to {
+  opacity: 0;
+  transform: translate(-50%, 20px);
+}
 
 /* Responsive adjustments */
 @media (max-width: 98%) {
