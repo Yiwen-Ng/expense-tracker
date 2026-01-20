@@ -69,9 +69,21 @@
         <div class="list-header">
           <h3>Recent Transactions</h3>
 
-          <!-- {{ transactions.length }} : Data -->
-          <span class="badge">{{ transactions.length }} total</span>
+          <div style="display:flex; gap:12px; align-items:center;">
+            <!-- Filter dropdown -->
+            <select v-model="filterRange">
+              <option value="all">All</option>
+              <option value="today">Today</option>
+              <option value="7">Last 7 days</option>
+              <option value="30">Last 30 days</option>
+            </select>
+
+
+            <!-- Count updates automatically -->
+            <span class="badge">{{ filteredTransactions.length }} Shown</span>
+          </div>
         </div>
+
         
         <div class="table-wrapper">
           <table class="data-table">
@@ -86,7 +98,7 @@
             </thead>
             
             <tbody>
-              <tr v-for="item in transactions" :key="item.id">
+              <tr v-for="item in filteredTransactions" :key="item.id">
                 <td class="date-cell">{{ formatDate(item.transaction_date) }}</td>
                 <td class="desc-cell">{{ item.description }}</td>
                 <td class="amount-cell" :class="item.amount >= 0 ? 'positive' : 'negative'">
@@ -114,7 +126,7 @@
                   </button>
                 </td>
               </tr>
-              <tr v-if="transactions.length === 0">
+              <tr v-if="filteredTransactions.length === 0">
                 <td colspan="3" class="empty-state">No transactions found.</td>
               </tr>
             </tbody>
@@ -134,7 +146,10 @@
 
 <script setup>
 // Import necessary tools from Vue
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
+
+// --- API CONFIG ---
+const API_BASE = "http://localhost/expense-tracker/backend/api";
 
 // --- REACTIVE STATE ---
 // Use 'ref' so that if these values change, the HTML updates automatically
@@ -150,8 +165,9 @@ const form = ref({
   transaction_date: new Date().toISOString().split('T')[0]    // Set the date input to 'today' by default
 });
 
-// --- API CONFIG ---
-const API_BASE = "http://localhost/expense-tracker/backend/api";
+// --- FILTER STATE ---
+// Control how many recent days to show
+const filterRange = ref("all");
 
 // --- FUNCTIONS ---
 // 'async'  : Functions happen in the background
@@ -228,6 +244,38 @@ const deleteTransaction = async (id) => {
   }
 };
 
+// filteredTransactions : Derive a filtered list from transactions
+// Computed means it auto-updates when data or filter changes
+
+const filteredTransactions = computed(() => {
+  if (!Array.isArray(transactions.value)) {
+    return [];
+  }
+
+  const now = new Date();
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  if (filterRange.value === "all") {
+    return transactions.value;
+  }
+
+  if (filterRange.value === "today") {
+    return transactions.value.filter(item => {
+      const txDate = new Date(item.transaction_date);
+      return txDate >= todayStart;
+    });
+  }
+
+  const days = parseInt(filterRange.value);
+
+  return transactions.value.filter(item => {
+    const txDate = new Date(item.transaction_date);
+    const diffDays = (now - txDate) / (1000 * 60 * 60 * 24);
+    return diffDays <= days;
+  });
+});
+
 // --- TOAST STATE ---
 const showToast = ref(false);
 const toastMessage = ref('');
@@ -256,9 +304,8 @@ onMounted(loadData);
 <style scoped>
 /* Main Container - Full Screen Width */
 .dashboard-container {
-  /* Theme Variables based on your second image */
-  --bg-beige: #f9f7f2;      /* Light Beige background */
-  --accent-blue: #dbeafe;    /* Soft Sky Blue for summary/accents */
+  --bg-beige: #f9f7f2;      
+  --accent-blue: #dbeafe;   
   --text-dark: #1a1f36;
   --card-white: #ffffff;
   --border-soft: #e3e8ee;
@@ -274,15 +321,27 @@ onMounted(loadData);
 }
 
 /* Header */
-.main-header { margin-bottom: 30px; }
-.brand h1 { margin: 0; color: var(--text-dark); font-size: 28px; font-weight: 700; }
-.brand p { margin: 5px 0 0; color: #697386; }
+.main-header { 
+  margin-bottom: 30px; 
+}
+
+.brand h1 { 
+  margin: 0; 
+  color: var(--text-dark); 
+  font-size: 28px; 
+  font-weight: 700; 
+}
+
+.brand p { 
+  margin: 5px 0 0; 
+  color: #697386; 
+}
 
 /* Summary Cards - Light Blue Theme */
 .summary-grid {
   display: flex;
   gap: 20px;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
   flex-wrap: wrap;
 }
 
@@ -296,9 +355,25 @@ onMounted(loadData);
   border: 1px solid #c9d9f0;
 }
 
-.currency-label { color: var(--dark-blue); font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-.total-amount { margin: 10px 0; font-size: 34px; color: var(--text-dark); font-weight: 800; }
-.transaction-count { font-size: 13px; color: #58667e; }
+.currency-label { 
+  color: var(--dark-blue); 
+  font-size: 13px; 
+  font-weight: 700; 
+  text-transform: uppercase; 
+  letter-spacing: 0.5px; 
+}
+
+.total-amount { 
+  margin: 10px 0; 
+  font-size: 34px; 
+  color: var(--text-dark); 
+  font-weight: 800; 
+}
+
+.transaction-count { 
+  font-size: 13px; 
+  color: #58667e; 
+}
 
 /* Layout Grid */
 .main-layout {
@@ -316,13 +391,37 @@ onMounted(loadData);
   box-shadow: 0 10px 25px rgba(0,0,0,0.02);
 }
 
-h3 { margin-top: 0; margin-bottom: 24px; color: var(--text-dark); font-weight: 700; }
+h3 { 
+  margin-top: 0; 
+  margin-bottom: 24px; 
+  color: var(--text-dark); 
+  font-weight: 700; 
+}
 
 /* Form Styles */
-.transaction-form { display: flex; flex-direction: column; gap: 18px; }
-.input-field { display: flex; flex-direction: column; gap: 8px; }
-.input-field label { font-size: 13px; font-weight: 600; color: #4f566b; }
-.input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.transaction-form { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 18px; 
+}
+
+.input-field { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 8px; 
+}
+
+.input-field label { 
+  font-size: 13px; 
+  font-weight: 600; 
+  color: #4f566b; 
+}
+
+.input-row { 
+  display: grid; 
+  grid-template-columns: 1fr 1fr; 
+  gap: 10px; 
+}
 
 input, 
 select {
@@ -343,8 +442,8 @@ select {
 select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%234f566b' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 15px center;   /* Positions the arrow on the right */
-  padding-right: 40px;                      /* Space for the arrow */
+  background-position: right 15px center;  
+  padding-right: 40px;                    
   cursor: pointer;
 }
 
@@ -364,7 +463,8 @@ input::-webkit-inner-spin-button {
 }
 
 /* Increase the internal padding of all inputs so they feel spacious */
-input, select {
+input, 
+select {
   padding: 14px 16px;   
   height: 50px;         
   font-size: 16px;
@@ -383,17 +483,66 @@ input, select {
 }
 
 /* Table Styles */
-.list-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.badge { background: var(--accent-blue); color: var(--dark-blue); padding: 6px 18px; border-radius: 20px; font-size: 14px; font-weight: bold; }
+.list-header { 
+  display: flex; 
+  flex-direction: row;
+  justify-content: space-between; 
+  align-items: center; 
+  margin-bottom: 20px; 
+  width: 100%;
+}
 
-.data-table { width: 100%; border-collapse: collapse; }
-.data-table th { text-align: left; padding: 12px; border-bottom: 2px solid #f4f7fe; color: #a3aed0; font-size: 13px; }
-.data-table td { padding: 18px 16px; border-bottom: 1px solid #f4f7fe; color: var(--text-dark); font-weight: 500; }
+.badge { 
+  background: var(--accent-blue); 
+  color: var(--dark-blue); 
+  padding: 14px 18px;
+  width: 150px;
+  border-radius: 30px; 
+  font-size: 14px; 
+  font-weight: bold; 
+}
 
-.date-cell { color: #697386; width: 100px; }
-.amount-cell { font-weight: 700; }
-.text-right { text-align: right; }
-.positive { color: #059669; }
+/* Ensure the heading doesn't push the badge away */
+.list-header h3 {
+  margin: 0;
+}
+
+.data-table { 
+  width: 100%; 
+  border-collapse: collapse;
+}
+
+.data-table th { 
+  text-align: left; 
+  padding: 12px; 
+  border-bottom: 2px solid #f4f7fe; 
+  color: #a3aed0; 
+  font-size: 13px; 
+}
+
+.data-table td { 
+  padding: 18px 16px; 
+  border-bottom: 1px solid #f4f7fe; 
+  color: var(--text-dark); 
+  font-weight: 500; 
+}
+
+.date-cell { 
+  color: #697386; 
+  width: 100px; 
+}
+
+.amount-cell { 
+  font-weight: 700; 
+}
+
+.text-right { 
+  text-align: right; 
+}
+
+.positive { 
+  color: #059669; 
+}
 
 /* The Delete Button */
 .delete-btn {
