@@ -129,9 +129,26 @@
               <option value="30">Last 30 days</option>
             </select>
 
+            <button class="export-btn" @click="exportToCSV" title="Export CSV" aria-label="Export CSV">
+              <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                width="24" 
+                height="24" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                stroke-width="2" 
+                stroke-linecap="round" 
+                stroke-linejoin="round"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </button>
 
             <!-- Count updates automatically -->
-            <span class="badge">{{ filteredTransactions.length }} Shown</span>
+            <!--span class="badge">{{ filteredTransactions.length }} Shown</span-->
           </div>
         </div>
 
@@ -367,6 +384,50 @@ const getCategoryClass = (category) => {
 
 const filterByCategory = (category) => {
   searchQuery.value = category.toLowerCase();
+};
+
+const exportToCSV = () => {
+  if (filteredTransactions.value.length === 0) {
+    alert("No data to export");
+    return;
+  }
+
+  // CSV headers
+  const headers = [
+    "Date",
+    "Description",
+    "Category",
+    "Amount",
+    "Currency"
+  ];
+
+  // Convert rows to CSV format
+  const rows = filteredTransactions.value.map(item => [
+    item.transaction_date,
+    `"${item.description}"`, // quotes prevent comma issues
+    item.category,
+    item.amount,
+    item.currency
+  ]);
+
+  const csvContent = [
+    headers.join(","),
+    ...rows.map(row => row.join(","))
+  ].join("\n");
+
+  // Create file
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+
+  // Trigger download
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `transactions_${new Date().toISOString().split("T")[0]}.csv`;
+  link.click();
+
+  URL.revokeObjectURL(url);
+
+  triggerToast("CSV Exported successfully !");
 };
 
 // --- TOAST STATE ---
@@ -780,6 +841,30 @@ select {
 .category-badge.clickable:hover {
   opacity: 0.85;
   transform: scale(1.05);
+}
+
+.export-btn {
+  background: transparent;  
+  border: none;              
+  height: 50px;            
+  width: 50px;              
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  color: var(--dark-blue);   
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.export-btn:hover {
+  opacity: 0.7;
+  transform: scale(1.1);     /* Subtle grow effect */
+}
+
+.export-btn svg {
+  width: 24px;  
+  height: 24px;
 }
 
 /* Responsive adjustments */
