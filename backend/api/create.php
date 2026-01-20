@@ -1,8 +1,7 @@
 <?php
-// Include database connection
 require_once "../config/database.php";
 
-// Read raw JSON input sent from the frontend
+// Read JSON input
 $data = json_decode(file_get_contents("php://input"), true);
 
 // Validate required fields
@@ -12,23 +11,21 @@ if (
     empty($data["amount"]) ||
     empty($data["currency"]) ||
     empty($data["transaction_date"])
-) 
-// Return error if any required field is missing
-{
+) {
     http_response_code(400);
     echo json_encode(["error" => "All fields are required"]);
     exit;
 }
 
-// Prepare SQL statement to prevent SQL injection
+// Prepare SQL
 $stmt = $conn->prepare(
-    "INSERT INTO transactions (description, amount, currency, transaction_date)
-     VALUES (?, ?, ?, ?)"
+    "INSERT INTO transactions (description, category, amount, currency, transaction_date)
+     VALUES (?, ?, ?, ?, ?)"
 );
 
-// Bind user input to the prepared statement -> s = string and d = double
+// Bind params (s = string, d = double)
 $stmt->bind_param(
-    "sdss",
+    "ssdss",
     $data["description"],
     $data["category"],
     $data["amount"],
@@ -36,10 +33,10 @@ $stmt->bind_param(
     $data["transaction_date"]
 );
 
-// Execute the SQL statement
+// Execute
 $stmt->execute();
 
-// Return success response
+// Success response
 echo json_encode([
     "message" => "Transaction created successfully"
 ]);

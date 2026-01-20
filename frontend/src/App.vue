@@ -4,7 +4,6 @@
     <header class="main-header">
       <div class="brand">
         <h1>Expense Tracker</h1>
-        <p>Manage your finances with ease</p>
       </div>
     </header>
 
@@ -21,6 +20,16 @@
           <p class="transaction-count">{{ stat.total_transactions }} Transactions</p>
         </div>
       </div>
+    </section>
+
+    <!-- Search & Filter -->
+    <section class="search-card">
+      <input
+        v-model="searchQuery"
+        type="text"
+        placeholder="Search here"
+        class="search-input"
+      />
     </section>
 
     <div class="main-layout">
@@ -118,7 +127,11 @@
               <tr v-for="item in filteredTransactions" :key="item.id">
                 <td class="date-cell">{{ formatDate(item.transaction_date) }}</td>
                 <td class="desc-cell">{{ item.description }}</td>
-                <td class="desc-cell">{{ item.category }}</td>
+                <td>
+                  <span class="category-badge" :class="getCategoryClass(item.category)">
+                    {{ item.category }}
+                  </span>
+                </td>
                 <td class="amount-cell" :class="item.amount >= 0 ? 'positive' : 'negative'">
                   {{ item.currency }} {{ formatCurrency(item.amount) }}
                 </td>
@@ -187,6 +200,9 @@ const form = ref({
 // --- FILTER STATE ---
 // Control how many recent days to show
 const filterRange = ref("all");
+
+// --- SEARCH STATE ---
+const searchQuery = ref('');
 
 // --- FUNCTIONS ---
 // 'async'  : Functions happen in the background
@@ -268,33 +284,55 @@ const deleteTransaction = async (id) => {
 // Computed means it auto-updates when data or filter changes
 
 const filteredTransactions = computed(() => {
-  if (!Array.isArray(transactions.value)) {
-    return [];
-  }
+  let result = transactions.value;
 
-  const now = new Date();
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  // Date filter
+  if (filterRange.value !== "all") {
+    const days = parseInt(filterRange.value);
+    const now = new Date();
 
-  if (filterRange.value === "all") {
-    return transactions.value;
-  }
-
-  if (filterRange.value === "today") {
-    return transactions.value.filter(item => {
+    result = result.filter(item => {
       const txDate = new Date(item.transaction_date);
-      return txDate >= todayStart;
+      const diffDays = (now - txDate) / (1000 * 60 * 60 * 24);
+      return diffDays <= days;
     });
   }
 
-  const days = parseInt(filterRange.value);
+  // Unified search (description + category)
+  if (searchQuery.value) {
+    const keyword = searchQuery.value.toLowerCase();
 
-  return transactions.value.filter(item => {
-    const txDate = new Date(item.transaction_date);
-    const diffDays = (now - txDate) / (1000 * 60 * 60 * 24);
-    return diffDays <= days;
-  });
+    result = result.filter(item =>
+      item.description.toLowerCase().includes(keyword) ||
+      item.category.toLowerCase().includes(keyword)
+    );
+  }
+
+  return result;
 });
+
+const getCategoryClass = (category) => {
+  switch (category) {
+    case 'Food':
+      return 'badge-food'
+    case 'Transportation':
+      return 'badge-transport'
+    case 'Shopping':
+      return 'badge-shopping'
+    case 'Healthcare':
+      return 'badge-health'
+    case 'Insurance':
+      return 'badge-insurance'
+    case 'Utilities':
+      return 'badge-utilities'
+    case 'Travel':
+      return 'badge-travel'
+    case 'Entertainment':
+      return 'badge-entertainment'
+    default:
+      return 'badge-other'
+  }
+};
 
 // --- TOAST STATE ---
 const showToast = ref(false);
@@ -331,7 +369,7 @@ onMounted(loadData);
   --border-soft: #e3e8ee;
   --dark-blue: #325A71;
 
-  width: 165%;               
+  /* width: 165%; */           
   min-height: 100vh;
   padding: 20px;
   background-color: var(--bg-beige);
@@ -342,19 +380,14 @@ onMounted(loadData);
 
 /* Header */
 .main-header { 
-  margin-bottom: 30px; 
+  margin-bottom: 20px; 
 }
 
 .brand h1 { 
   margin: 0; 
   color: var(--text-dark); 
-  font-size: 28px; 
+  font-size: 32px; 
   font-weight: 700; 
-}
-
-.brand p { 
-  margin: 5px 0 0; 
-  color: #697386; 
 }
 
 /* Summary Cards - Light Blue Theme */
@@ -623,6 +656,68 @@ select {
 .slide-up-leave-to {
   opacity: 0;
   transform: translate(-50%, 20px);
+}
+
+.search-card {
+  margin-bottom: 20px;
+  border-radius: 20px;
+  border: 1px solid var(--border-soft);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.02);
+}
+
+.search-input {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid #dcdfe4;
+  font-size: 16px;
+}
+
+.category-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  font-size: 15px;
+  font-weight: 800;
+  border-radius: 999px;
+  color: var(--dark-blue);
+  white-space: nowrap;
+}
+
+/* Category colors */
+.badge-food {
+  background-color: #FFEBEE; /* soft blush */
+}
+
+.badge-transport {
+  background-color: #FFF3E0; /* peach cream */
+}
+
+.badge-shopping {
+  background-color: #FFFDE7; /* lemon chiffon */
+}
+
+.badge-health {
+  background-color: #F1F8E9; /* mint cream */
+}
+
+.badge-insurance {
+  background-color: #E1F5FE; /* pale sky */
+}
+
+.badge-utilities {
+  background-color: #F3E5F5; /* lavender mist */
+}
+
+.badge-travel {
+  background-color: #FCE4EC; /* rose water */
+}
+
+.badge-entertainment {
+  background-color: #E0F2F1; /* dew drop */
+}
+
+.badge-other {
+  background-color: #ECEFF1; /* cloud grey */
 }
 
 /* Responsive adjustments */
