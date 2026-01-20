@@ -88,12 +88,6 @@
           </div>
 
           <div class="input-row">
-            <!-- Amount -->
-            <div class="input-field">
-              <label>Amount</label>
-              <input v-model.number="form.amount" type="number" step="0.01" placeholder="0.00" required />
-            </div>
-
             <!-- Currency -->
             <div class="input-field">
               <label>Currency</label>
@@ -102,6 +96,12 @@
                 <option value="MYR">MYR</option>
                 <option value="EUR">EUR</option>
               </select>
+            </div>
+            
+            <!-- Amount -->
+            <div class="input-field">
+              <label>Amount</label>
+              <input v-model.number="form.amount" type="number" step="0.01" placeholder="0.00" required />
             </div>
           </div>
 
