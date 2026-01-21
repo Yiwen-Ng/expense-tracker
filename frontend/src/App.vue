@@ -44,15 +44,49 @@
         </div>
       </div>
 
-      <!-- Previous Months Expenses -->
-      <div class="card summary-card">
+      <!-- Top Category -->
+      <div class="card summary-card" v-if="topCategory">
         <div class="card-content">
-          <span class="currency-label">Previous Months</span>
+          <span class="summary-title">Top Category</span>
 
-          <div v-for="m in previousMonths" :key="m.label" style="margin-top: 8px">
-            <strong>{{ m.label }}</strong>
-            <div>MYR {{ formatCurrency(m.total) }}</div>
+          <h2 class="summary-main">
+            {{ topCategory.category }}
+          </h2>
+
+          <p class="summary-amount">
+            MYR {{ formatCurrency(topCategory.amount) }}
+          </p>
+
+          <p class="summary-meta">
+            {{ topCategory.percentage }}% of this month’s spending
+          </p>
+
+          <!-- Mini progress bar -->
+          <div class="mini-bar">
+            <div
+              class="mini-bar-fill"
+              :style="{ width: topCategory.percentage + '%' }"
+            ></div>
           </div>
+
+          <!-- Expandable button -->
+          <button
+            class="expand-btn"
+            @click="showTopCategories = !showTopCategories"
+          >
+            {{ showTopCategories ? 'Hide details' : 'View top 3 categories' }}
+          </button>
+
+          <!-- Expandable list -->
+          <Transition name="fade">
+            <ul v-if="showTopCategories" class="top-category-list">
+              <li v-for="item in topCategories" :key="item.category">
+                <span>{{ item.category }}</span>
+                <strong>MYR {{ formatCurrency(item.amount) }}</strong>
+              </li>
+            </ul>
+          </Transition>
+
         </div>
       </div>
 
@@ -499,6 +533,85 @@ const percentageChange = computed(() => {
   return Math.round((diff / previousMonthTotal.value) * 100);
 });
 
+// Top Category 
+const currentMonthTransactions = computed(() => {
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
+  return transactions.value.filter(tx => {
+    const d = new Date(tx.transaction_date);
+    return (
+      d.getMonth() === currentMonth &&
+      d.getFullYear() === currentYear
+    );
+  });
+});
+
+const topCategory = computed(() => {
+  // No data → no card
+  if (currentMonthTransactions.value.length === 0) {
+    return null;
+  }
+
+  const totals = {};
+
+  // Sum amount by category
+  currentMonthTransactions.value.forEach(tx => {
+    if (!totals[tx.category]) {
+      totals[tx.category] = 0;
+    }
+    totals[tx.category] += Number(tx.amount);
+  });
+
+  // Find highest category
+  let topCategoryName = '';
+  let topCategoryAmount = 0;
+
+  for (const category in totals) {
+    if (totals[category] > topCategoryAmount) {
+      topCategoryAmount = totals[category];
+      topCategoryName = category;
+    }
+  }
+
+  // Total spending this month
+  const totalMonthSpending = currentMonthTransactions.value.reduce(
+    (sum, tx) => sum + Number(tx.amount),
+    0
+  );
+
+  const percentage =
+    totalMonthSpending > 0
+      ? ((topCategoryAmount / totalMonthSpending) * 100).toFixed(1)
+      : 0;
+
+  return {
+    category: topCategoryName,
+    amount: topCategoryAmount,
+    percentage
+  };
+});
+
+// Top 3 categories expandable view
+const topCategories = computed(() => {
+  const totals = {};
+
+  currentMonthTransactions.value.forEach(tx => {
+    if (!totals[tx.category]) {
+      totals[tx.category] = 0;
+    }
+    totals[tx.category] += Number(tx.amount);
+  });
+
+  return Object.entries(totals)
+    .map(([category, amount]) => ({ category, amount }))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 3);
+});
+
+const showTopCategories = ref(false);
+
 // Category aggregation
 const barCanvas = ref(null)
 let barChart = null
@@ -808,18 +921,19 @@ onMounted(loadData);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin: 10px 0;
 }
 
 .overview-header .label {
-  font-size: 12px;
+  font-size: 13px;
   letter-spacing: 0.08em;
-  color: #6b7280;
-  font-weight: 600;
+  color: var(--dark-blue);
+  font-weight: 700;
 }
 
 .overview-header .month {
   font-size: 13px;
-  color: #9ca3af;
+  color: var(--dark-blue);
 }
 
 .overview-amount {
@@ -880,6 +994,7 @@ onMounted(loadData);
   font-weight: 700; 
   text-transform: uppercase; 
   letter-spacing: 0.5px; 
+  margin: 10px 0;
 }
 
 .total-amount { 
@@ -892,6 +1007,84 @@ onMounted(loadData);
 .transaction-count { 
   font-size: 13px; 
   color: #58667e; 
+}
+
+/* Top Category */
+.summary-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--dark-blue);
+  margin: 10px 0;
+  text-transform: uppercase;
+}
+
+.summary-main {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin: 10px 0;
+}
+
+.summary-amount {
+  font-size: 1.2rem;
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+.summary-meta {
+  font-size: 0.8rem;
+  color: #666;
+  margin-bottom: 20px;
+}
+
+.mini-bar {
+  margin-top: 8px;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.mini-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #22c55e);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+/* Expandable List */
+.expand-btn {
+  margin-top: 15px;
+  background: none;
+  border: none;
+  color: #6366f1;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.top-category-list {
+  margin-top: 8px;
+  list-style: none;
+  padding: 0;
+}
+
+.top-category-list li {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  padding: 4px 0;
+  border-bottom: 1px dashed #e5e7eb;
+}
+
+/* Animation */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
 /* Layout Grid */
