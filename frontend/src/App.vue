@@ -193,7 +193,7 @@
       <section class="card list-card">
 
         <div class="list-header">
-          <h3>Recent Transactions</h3>
+          <h3>Monthly Transactions</h3>
 
           <div style="display:flex; gap:12px; align-items:center;">
             <!-- Filter dropdown -->
@@ -894,7 +894,7 @@ onMounted(loadData);
   font-weight: 700; 
 }
 
-/* Summary Cards - Light Blue Theme */
+/* Summary Cards */
 .summary-grid {
   display: flex;
   gap: 20px;
@@ -905,11 +905,14 @@ onMounted(loadData);
 .summary-card {
   flex: 1;
   min-width: 250px;
-  background: var(--accent-blue); /* Light Blue from your image */
+  background: var(--accent-blue);
   border-radius: 20px;
   padding: 24px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.03);
   border: 1px solid #c9d9f0;
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Monthly Overview Card */
@@ -1074,6 +1077,20 @@ onMounted(loadData);
   font-size: 0.85rem;
   padding: 4px 0;
   border-bottom: 1px dashed #e5e7eb;
+}
+
+/* Bar Chart */
+.chart-container {
+  position: relative;
+  flex: 1;
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+}
+
+.chart-container canvas {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 /* Animation */
