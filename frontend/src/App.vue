@@ -8,16 +8,59 @@
     </header>
 
     <section class="summary-grid">
+      <!-- Monthly Overview -->
+      <div class="card summary-card monthly-overview">
+        <div class="overview-header">
+          <span class="label">MONTHLY OVERVIEW</span>
+          <span class="month">{{ currentMonthLabel }}</span>
+        </div>
 
-      <!-- (Loop) : If summaryData contains 5 items, Vue will clone this <div> 5 times -->
-      <!-- stat : This is an alias for the "current item" being processed -->
-      <!-- (Unique ID) : If the list changes, Vue uses the key to identify which specific DOM element corresponds to which data object -->
+        <div class="overview-amount">
+          MYR {{ formatCurrency(currentMonthTotal) }}
+        </div>
 
-      <div v-for="stat in summaryData" :key="stat.currency" class="card summary-card">
+        <div class="comparison-block">
+          <div class="comparison-title">
+            <span
+              :class="percentageChange >= 0 ? 'up' : 'down'"
+            >
+              {{ percentageChange >= 0 ? '↑' : '↓' }}
+              Compared to previous months
+            </span>
+          </div>
+
+          <ul class="previous-list">
+            <li v-for="m in previousMonths" :key="m.label">
+              <span class="month">{{ m.label }}</span>
+              <span class="amount">MYR {{ formatCurrency(m.total) }}</span>
+            </li>
+          </ul>
+
+          <div class="percentage-change"
+              :class="percentageChange >= 0 ? 'up' : 'down'">
+            {{ percentageChange >= 0 ? '+' : '' }}{{ percentageChange }}%
+            from last month
+          </div>
+        </div>
+      </div>
+
+      <!-- Previous Months Expenses -->
+      <div class="card summary-card">
         <div class="card-content">
-          <span class="currency-label">{{ stat.currency }} Balance</span>
-          <h2 class="total-amount">{{ formatCurrency(stat.total_amount) }}</h2>
-          <p class="transaction-count">{{ stat.total_transactions }} Transactions</p>
+          <span class="currency-label">Previous Months</span>
+
+          <div v-for="m in previousMonths" :key="m.label" style="margin-top: 8px">
+            <strong>{{ m.label }}</strong>
+            <div>MYR {{ formatCurrency(m.total) }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Category Aggregation (Bar Chart) -->
+      <div class="card summary-card">
+        <span class="currency-label">Spending by Category</span>
+        <div class="chart-container">
+          <canvas ref="barCanvas"></canvas>
         </div>
       </div>
     </section>
@@ -92,9 +135,7 @@
             <div class="input-field">
               <label>Currency</label>
               <select v-model="form.currency">
-                <option value="USD">USD</option>
                 <option value="MYR">MYR</option>
-                <option value="EUR">EUR</option>
               </select>
             </div>
             
@@ -268,6 +309,8 @@
 </template>
 
 <script setup>
+import Chart from 'chart.js/auto'
+
 // Import necessary tools from Vue
 import { ref, onMounted, computed } from 'vue';
 import { watch } from 'vue';
@@ -381,6 +424,149 @@ const deleteTransaction = async (id) => {
     console.error("Delete failed:", err);
   }
 };
+
+// This month total expenses
+const now = new Date();
+
+const currentMonthLabel = computed(() => {
+  const now = new Date();
+  return now.toLocaleString('default', {
+    month: 'long',
+    year: 'numeric'
+  });
+});
+
+// Total for current month
+const currentMonthTotal = computed(() => {
+  return transactions.value
+    .filter(tx => {
+      const d = new Date(tx.transaction_date);
+      return d.toLocaleString('default', {
+        month: 'long',
+        year: 'numeric'
+      }) === currentMonthLabel.value;
+    })
+    .reduce((sum, tx) => sum + Number(tx.amount), 0);
+});
+
+// Total for previous month (1 month before)
+const previousMonthTotal = computed(() => {
+  const prev = new Date();
+  prev.setMonth(prev.getMonth() - 1);
+
+  const prevLabel = prev.toLocaleString('default', {
+    month: 'long',
+    year: 'numeric'
+  });
+
+  return transactions.value
+    .filter(tx => {
+      const d = new Date(tx.transaction_date);
+      return d.toLocaleString('default', {
+        month: 'long',
+        year: 'numeric'
+      }) === prevLabel;
+    })
+    .reduce((sum, tx) => sum + Number(tx.amount), 0);
+});
+
+// Previous months summary
+const previousMonths = computed(() => {
+  const map = {};
+
+  transactions.value.forEach(tx => {
+    const d = new Date(tx.transaction_date);
+    const label = d.toLocaleString('default', {
+      month: 'long',
+      year: 'numeric'
+    });
+
+    map[label] = (map[label] || 0) + Number(tx.amount);
+  });
+
+  return Object.entries(map)
+    .map(([label, total]) => ({ label, total }))
+    .filter(m => m.label !== currentMonthLabel.value)
+    .slice(0, 2);
+});
+
+const percentageChange = computed(() => {
+  if (!previousMonthTotal.value) return 0;
+
+  const diff =
+    currentMonthTotal.value - previousMonthTotal.value;
+
+  return Math.round((diff / previousMonthTotal.value) * 100);
+});
+
+// Category aggregation
+const barCanvas = ref(null)
+let barChart = null
+
+const categoryColors = {
+  Food: '#FFCDD2',
+  Transportation: '#FFE0B2',
+  Shopping: '#FFF9C4',
+  Healthcare: '#DCEDC8',
+  Insurance: '#B3E5FC',
+  Utilities: '#E1BEE7',
+  Travel: '#F8BBD0',
+  Entertainment: '#B2DFDB',
+  Other: '#CFD8DC'
+}
+
+const categoryTotals = computed(() => {
+  const map = {}
+  const now = new Date()
+
+  transactions.value.forEach(t => {
+    const d = new Date(t.transaction_date)
+
+    if (
+      d.getMonth() === now.getMonth() &&
+      d.getFullYear() === now.getFullYear()
+    ) {
+      map[t.category] = (map[t.category] || 0) + Number(t.amount)
+    }
+  })
+
+  return map
+})
+
+watch(categoryTotals, () => {
+  if (barChart) barChart.destroy()
+
+  barChart = new Chart(barCanvas.value, {
+    type: 'bar',
+    data: {
+      labels: Object.keys(categoryTotals.value),
+      datasets: [{
+        data: Object.values(categoryTotals.value),
+        backgroundColor: Object.keys(categoryTotals.value).map(
+          c => categoryColors[c] || '#ccc'
+        ),
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grace: '10%',        // Reduce unused top space
+          ticks: {
+            stepSize: 100,     // MYR 100, 200, 300
+            callback: v => `MYR ${v}`
+          }
+        }
+      }
+    }
+  })
+})
 
 // filteredTransactions : Derive a filtered list from transactions
 // Computed means it auto-updates when data or filter changes
@@ -611,6 +797,81 @@ onMounted(loadData);
   padding: 24px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.03);
   border: 1px solid #c9d9f0;
+}
+
+/* Monthly Overview Card */
+.monthly-overview {
+  padding: 24px;
+}
+
+.overview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.overview-header .label {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.overview-header .month {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.overview-amount {
+  margin: 16px 0;
+  font-size: 32px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.comparison-block {
+  margin-top: 16px;
+}
+
+.comparison-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.comparison-title .up {
+  color: #16a34a;
+}
+
+.comparison-title .down {
+  color: #dc2626;
+}
+
+.previous-list {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0;
+}
+
+.previous-list li {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.percentage-change {
+  margin-top: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.percentage-change.up {
+  color: #16a34a;
+}
+
+.percentage-change.down {
+  color: #dc2626;
 }
 
 .currency-label { 
