@@ -1,11 +1,10 @@
-Expense Tracker
-A full-stack web application designed to track expenses and income across multiple currencies. This project features a robust PHP REST API and a dynamic Vue.js 3 frontend.
+Expense Tracker : A full-stack web application designed to track expenses and income across multiple currencies. This project features a robust PHP REST API and a dynamic Vue.js 3 frontend.
 
 Features
 - Real-time Tracking : Add, edit, and delete transactions instantly.
 - Currency Insights  : Automatically groups and sums expenses by currency (USD, EUR, etc.).
-- Modern UI.         : Built with Vue.js, featuring a clean interface and responsive design.
-- Secure Backend.    : PHP-driven API using prepared statements to ensure data integrity.
+- Modern UI          : Built with Vue.js, featuring a clean interface and responsive design.
+- Secure Backend     : PHP-driven API using prepared statements to ensure data integrity.
 
 Tech Stack
 - Frontend : Vue.js, JavaScript, CSS3
