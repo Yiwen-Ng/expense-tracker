@@ -259,11 +259,46 @@
             <TransitionGroup tag="tbody" name="fade-slide">
               <tr v-for="item in paginatedTransactions" :key="item.id">
                 
-                <td class="date-cell">{{ formatDate(item.transaction_date) }}</td>
-                <td class="desc-cell">{{ item.description }}</td>
-                
+                <!-- Date -->
+                <td class="date-cell">
+                  {{ formatDate(item.transaction_date) }}
+                </td>
+
+                <!-- Description -->
                 <td class="desc-cell">
-                  <span class="category-badge clickable"
+                  <input
+                    v-if="editingRowId === item.id"
+                    v-model="editBuffer.description"
+                    class="inline-input"
+                  />
+                  <span v-else>
+                    {{ item.description }}
+                  </span>
+                </td>
+
+                <!-- Category -->
+                <td class="desc-cell">
+                  <!-- EDIT MODE -->
+                  <select
+                    v-if="editingRowId === item.id"
+                    v-model="editBuffer.category"
+                    class="inline-input"
+                  >
+                    <option value="Food">Food</option>
+                    <option value="Transportation">Transportation</option>
+                    <option value="Shopping">Shopping</option>
+                    <option value="Healthcare">Healthcare</option>
+                    <option value="Insurance">Insurance</option>
+                    <option value="Utilities">Utilities</option>
+                    <option value="Travel">Travel</option>
+                    <option value="Entertainment">Entertainment</option>
+                    <option value="Other">Other</option>
+                  </select>
+
+                  <!-- VIEW MODE -->
+                  <span
+                    v-else
+                    class="category-badge clickable"
                     :class="getCategoryClass(item.category)"
                     @click="filterByCategory(item.category)"
                     title="Filter by category"
@@ -272,35 +307,64 @@
                   </span>
                 </td>
                   
-                <td class="amount-cell" :class="item.amount >= 0 ? 'positive' : 'negative'">
-                  {{ item.currency }} {{ formatCurrency(item.amount) }}
+                <!-- Amount -->
+                <td class="amount-cell" :class="editBuffer.amount >= 0 ? 'positive' : 'negative'">
+                  <input
+                    v-if="editingRowId === item.id"
+                    type="number"
+                    v-model="editBuffer.amount"
+                    class="inline-input amount-input"
+                  />
+                  <span v-else>
+                    {{ item.currency }} {{ formatCurrency(item.amount) }}
+                  </span>
                 </td>
                   
+                <!-- Action -->
                 <td class="action-cell">
-                  <button @click="deleteTransaction(item.id)" class="delete-btn" title="Delete Transaction">
-                    <svg 
-                      xmlns="http://www.w3.org/2000/svg" 
-                      width="18" 
-                      height="18" 
-                      viewBox="0 0 24 24" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      stroke-width="2" 
-                      stroke-linecap="round" 
-                      stroke-linejoin="round"
-                    >
-                      <path d="M3 6h18"></path>
-                      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
-                      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-                      <line x1="10" y1="11" x2="10" y2="17"></line>
-                      <line x1="14" y1="11" x2="14" y2="17"></line>
-                    </svg>
-                  </button>
+                  <div class="action-btn-container">
+                    <!-- Edit Mode -->
+                    <template v-if="editingRowId === item.id">
+                      <button @click="saveInlineEdit" class="icon-btn save-btn" title="Save">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                      </button>
+
+                      <button @click="cancelInlineEdit" class="icon-btn cancel-btn" title="Cancel">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                      </button>
+                    </template>
+                    
+                    <!-- View Mode -->
+                    <template v-else>
+                      <button @click="startInlineEdit(item)" class="icon-btn edit-btn" title="Edit">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                      </button>
+
+                      <button @click="deleteTransaction(item.id)" class="delete-btn" title="Delete Transaction">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M3 6h18"></path>
+                          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                          <line x1="10" y1="11" x2="10" y2="17"></line>
+                          <line x1="14" y1="11" x2="14" y2="17"></line>
+                        </svg>
+                      </button>
+                    </template>
+
+                  </div>
                 </td>
               </tr>
 
               <tr v-if="filteredTransactions.length === 0">
-                <td colspan="3" class="empty-state">No transactions found.</td>
+                <td colspan="5" class="empty-state">No transactions found.</td>
               </tr>
             </TransitionGroup>           
           </table>
@@ -414,7 +478,60 @@ const availableYears = computed(() => {
   return Array.from(years).sort((a, b) => b - a)
 })
 
-// Pagination
+// --- EDIT STATE ---
+const editingRowId = ref(null)
+
+const editBuffer = ref({
+  description: '',
+  category: '',
+  amount: 0
+})
+
+// Editing a row
+const startInlineEdit = (item) => {
+  editingRowId.value = item.id
+
+  editBuffer.value = {
+    description: item.description,
+    category: item.category,          // Original is selected
+    amount: item.amount
+  }
+}
+// Save edited row
+const saveInlineEdit = async () => {
+  try {
+    const payload = {
+      id: editingRowId.value,
+      description: editBuffer.value.description,
+      category: editBuffer.value.category,
+      amount: editBuffer.value.amount
+    }
+
+    const res = await fetch(`${API_BASE}/update.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+
+    if (!res.ok) throw new Error('Update failed')
+
+    editingRowId.value = null
+    await loadData()
+
+    triggerToast('Transaction updated successfully !')
+  } catch (err) {
+    console.error(err)
+    alert('Failed to update transaction')
+  }
+}
+
+
+// Cancel editing
+const cancelInlineEdit = () => {
+  editingRowId.value = null
+}
+
+// --- PAGINATION ---
 const currentPage = ref(1);
 const itemsPerPage = 5;
 
@@ -820,8 +937,9 @@ const getCategoryClass = (category) => {
 };
 
 const filterByCategory = (category) => {
-  searchQuery.value = category.toLowerCase();
-};
+  if (editingRowId.value !== null) return
+  searchQuery.value = category.toLowerCase()
+}
 
 const exportToCSV = () => {
   if (filteredTransactions.value.length === 0) {
@@ -1307,11 +1425,43 @@ select {
   color: #059669; 
 }
 
-/* The Delete Button */
-.delete-btn {
+/* Action */
+.inline-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  margin-right: 6px;
+}
+
+.amount-input {
+  text-align: right;
+}
+
+.action-cell {
+  text-align: left; 
+  vertical-align: middle;
+}
+
+.action-btn-container {
+  display: flex; 
+  gap: 4px; 
+  justify-content: flex-start;
+  align-items: center;
+}
+
+/* Base style for all action buttons (Edit, Save, Cancel, Delete) */
+.icon-btn, .delete-btn {
   background: transparent;
   border: none;
-  color: var(--text-muted); /* Starts grey to blend in */
+  color: #64748b; /* Matches your --text-muted grey */
   cursor: pointer;
   padding: 8px;
   border-radius: 8px;
@@ -1321,11 +1471,25 @@ select {
   transition: all 0.2s ease;
 }
 
-/* Hover effect: Red Glow */
-.delete-btn:hover {
-  color: #ff5c5c; /* Turns vibrant red */
-  background: rgba(255, 92, 92, 0.1); /* Subtle red background highlight */
-  transform: scale(1.1); /* Slight grow effect */
+/* Edit Button Hover: Blue Glow */
+.edit-btn:hover {
+  color: #3b82f6; 
+  background: rgba(59, 130, 246, 0.1);
+  transform: scale(1.1);
+}
+
+/* Save Button Hover: Green Glow */
+.save-btn:hover {
+  color: #10b981; 
+  background: rgba(16, 185, 129, 0.1);
+  transform: scale(1.1);
+}
+
+/* Cancel & Delete Button Hover: Red Glow */
+.cancel-btn:hover, .delete-btn:hover {
+  color: #ff5c5c; 
+  background: rgba(255, 92, 92, 0.1);
+  transform: scale(1.1);
 }
 
 .toast-notification {
