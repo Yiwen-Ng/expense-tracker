@@ -338,7 +338,7 @@
                         </svg>
                       </button>
                     </template>
-                    
+
                     <!-- View Mode -->
                     <template v-else>
                       <button @click="startInlineEdit(item)" class="icon-btn edit-btn" title="Edit">
@@ -422,22 +422,39 @@
 </template>
 
 <script setup>
+
+/* 1. Imports */
+import { ref, computed, watch, onMounted } from 'vue'
 import Chart from 'chart.js/auto'
 
-// Import necessary tools from Vue
-import { ref, onMounted, computed } from 'vue';
-import { watch } from 'vue';
-
-// --- API CONFIG ---
+/* 2. API Config and Constants */
 const API_BASE = "http://localhost/expense-tracker/backend/api";
 
-// --- REACTIVE STATE ---
-// Use 'ref' so that if these values change, the HTML updates automatically
+const months = [
+  'Jan', 'Feb', 'Mar', 'Apr',
+  'May', 'Jun', 'Jul', 'Aug',
+  'Sep', 'Oct', 'Nov', 'Dec'
+]
 
+const categoryColors = {
+  Food: '#FFCDD2',
+  Transportation: '#FFE0B2',
+  Shopping: '#FFF9C4',
+  Healthcare: '#DCEDC8',
+  Insurance: '#B3E5FC',
+  Utilities: '#E1BEE7',
+  Travel: '#F8BBD0',
+  Entertainment: '#B2DFDB',
+  Other: '#CFD8DC'
+}
+
+/* 3. Core Backend State */
 const transactions = ref([]);   // Store the array of all transaction rows
 const summaryData = ref([]);    // Store the summary (totals per currency)
 
-// Represent the data currently sitting in input boxes
+/* 4. UI state */
+
+// Form 
 const form = ref({
   description: '',
   category: '',  
@@ -446,27 +463,44 @@ const form = ref({
   transaction_date: new Date().toISOString().split('T')[0]    // Set the date input to 'today' by default
 });
 
-// --- SEARCH STATE ---
+// Inline Editing
+const editingRowId = ref(null)
+
+const editBuffer = ref({
+  description: '',
+  category: '',
+  amount: 0
+})
+
+// Toast
+const showToast = ref(false);
+const toastMessage = ref('');
+
+// Top Category Card
+const showTopCategories = ref(false);
+
+/* 5. Filters , Search & Pagination */
+
+// Search
 const searchQuery = ref('');
 
-// --- FILTER STATE ---
-// Month and year filter
-const selectedMonth = ref(new Date().getMonth())    // 0–11 or 'all'
+// Filter State
+const selectedMonth = ref(new Date().getMonth())    
 const selectedYear = ref(new Date().getFullYear())
 
-// Reset page when page size changes
+// Pagination
+const currentPage = ref(1);
+const itemsPerPage = 5;
+
+// Reset pagination on filter changes
 watch(
   [selectedMonth, selectedYear, searchQuery, transactions],
-  () => {
-    currentPage.value = 1
-  }
+  () => { currentPage.value = 1 }
 )
 
-const months = [
-  'Jan', 'Feb', 'Mar', 'Apr',
-  'May', 'Jun', 'Jul', 'Aug',
-  'Sep', 'Oct', 'Nov', 'Dec'
-]
+/* 6. Computed Values ( All Derived Data ) */
+
+// A. Years Dropdown
 
 const availableYears = computed(() => {
   const years = new Set()
@@ -478,153 +512,94 @@ const availableYears = computed(() => {
   return Array.from(years).sort((a, b) => b - a)
 })
 
-// --- EDIT STATE ---
-const editingRowId = ref(null)
+// B. Filtering + Pagination
 
-const editBuffer = ref({
-  description: '',
-  category: '',
-  amount: 0
-})
+// Derive a filtered list from transactions
+const filteredTransactions = computed(() => {
+  let result = transactions.value
 
-// Editing a row
-const startInlineEdit = (item) => {
-  editingRowId.value = item.id
-
-  editBuffer.value = {
-    description: item.description,
-    category: item.category,          // Original is selected
-    amount: item.amount
-  }
-}
-// Save edited row
-const saveInlineEdit = async () => {
-  try {
-    const payload = {
-      id: editingRowId.value,
-      description: editBuffer.value.description,
-      category: editBuffer.value.category,
-      amount: editBuffer.value.amount
-    }
-
-    const res = await fetch(`${API_BASE}/update.php`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+  // Month + Year filter
+  if (selectedMonth.value !== 'all') {
+    result = result.filter(item => {
+      const d = new Date(item.transaction_date)
+      return (
+        d.getMonth() === selectedMonth.value &&
+        d.getFullYear() === selectedYear.value
+      )
     })
-
-    if (!res.ok) throw new Error('Update failed')
-
-    editingRowId.value = null
-    await loadData()
-
-    triggerToast('Transaction updated successfully !')
-  } catch (err) {
-    console.error(err)
-    alert('Failed to update transaction')
   }
-}
 
+  // Search filter
+  if (searchQuery.value) {
+    const keyword = searchQuery.value.toLowerCase()
 
-// Cancel editing
-const cancelInlineEdit = () => {
-  editingRowId.value = null
-}
-
-// --- PAGINATION ---
-const currentPage = ref(1);
-const itemsPerPage = 5;
-
-// --- FUNCTIONS ---
-// 'async'  : Functions happen in the background
-
-// loadData : Grab all the latest data from the database
-// Fetch both list and summary data at the same time to be faster
-const loadData = async () => {
-  try {
-    const [listRes, summaryRes] = await Promise.all([
-      fetch(`${API_BASE}/fetch.php`),
-      fetch(`${API_BASE}/summary.php`)
-    ]);
-    
-    // Convert the raw data from PHP into JavaScript objects
-    // Use .value to update a 'ref' variable in Vue
-
-    transactions.value = await listRes.json();
-    summaryData.value = await summaryRes.json();
-
-  } catch (error) {
-    console.error("Failed to load data:", error);
+    result = result.filter(item =>
+      item.description.toLowerCase().includes(keyword) ||
+      item.category.toLowerCase().includes(keyword)
+    )
   }
-};
 
-// submitForm : Send the 'form' data to PHP server to save it
-const submitForm = async () => {
-  try {
-    const response = await fetch(`${API_BASE}/create.php`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form.value)        // Turn the JS object into a text string
-    });
-
-    if (response.ok) {
-      
-      // Reset form and clear the form back to empty / defaults
-      form.value = { 
-        description: '', 
-        category: '',
-        amount: '', 
-        currency: 'MYR', 
-        transaction_date: new Date().toISOString().split('T')[0] 
-      };
-      
-      // Refresh the data so the new row appears in the table
-      await loadData();
-
-      triggerToast("Transaction saved successfully !");
-    }
-  } catch (err) {
-    alert("Check your PHP connection/CORS headers!");
-  }
-};
-
-// deleteTransaction : Delete a transaction
-const deleteTransaction = async (id) => {
-  // Ask for confirmation so the user doesn't delete by accident
-  if (!confirm("Are you sure you want to delete this?")) return;
-
-  try {
-    const response = await fetch(`${API_BASE}/delete.php`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: id })
-    });
-
-    if (response.ok) {
-      // Refresh the data to show the updated list and summary
-      await loadData();
-
-      triggerToast("Transaction deleted !");
-    }
-  } catch (err) {
-    console.error("Delete failed:", err);
-  }
-};
-
-// This month total expenses
-const now = new Date();
-
-const currentMonthLabel = computed(() => {
-  if (selectedMonth.value === 'all') return 'All Months'
-
-  return new Date(
-    selectedYear.value,
-    selectedMonth.value
-  ).toLocaleString('default', {
-    month: 'long',
-    year: 'numeric'
-  })
+  return result
 })
+
+// Create paginated computed list
+const paginatedTransactions = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage;
+  const end = start + itemsPerPage;
+  return filteredTransactions.value.slice(start, end);
+});
+
+// Total pages pagination
+const totalPages = computed(() => {
+  return Math.ceil(filteredTransactions.value.length / itemsPerPage);
+});
+
+// C. Paginated UI
+
+const pageNumbers = computed(() => {
+  return Array.from({ length: totalPages.value }, (_, i) => i + 1);
+});
+
+// Visible page numbers
+const visiblePages = computed(() => {
+  const pages = [];
+  const total = totalPages.value;
+  const current = currentPage.value;
+
+  if (total <= 7) {
+    // Show all pages
+    for (let i = 1; i <= total; i++) pages.push(i);
+    return pages;
+  }
+
+  // Always show first page
+  pages.push(1);
+
+  // Left ellipsis
+  if (current > 4) {
+    pages.push('...');
+  }
+
+  // Middle pages
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 2, current + 1);
+
+  for (let i = start; i <= end; i++) {
+    pages.push(i);
+  }
+
+  // Right ellipsis
+  if (current < total - 3) {
+    pages.push('...');
+  }
+
+  // Always show last 2 pages
+  pages.push(total - 1, total);
+
+  return pages;
+});
+
+// D. Monthly Analytics
 
 // Total for current month
 const currentMonthTotal = computed(() => {
@@ -641,7 +616,7 @@ const currentMonthTotal = computed(() => {
     .reduce((sum, tx) => sum + Number(tx.amount), 0)
 })
 
-// Total for previous month (1 month before)
+// Total for previous month ( 1 month before )
 const previousMonthTotal = computed(() => {
   if (selectedMonth.value === 'all') return 0
 
@@ -660,6 +635,15 @@ const previousMonthTotal = computed(() => {
     })
     .reduce((sum, tx) => sum + Number(tx.amount), 0)
 })
+
+const percentageChange = computed(() => {
+  if (!previousMonthTotal.value) return 0;
+
+  const diff =
+    currentMonthTotal.value - previousMonthTotal.value;
+
+  return Math.round((diff / previousMonthTotal.value) * 100);
+});
 
 // Previous months summary
 const previousMonths = computed(() => {
@@ -681,14 +665,20 @@ const previousMonths = computed(() => {
     .slice(0, 2);
 });
 
-const percentageChange = computed(() => {
-  if (!previousMonthTotal.value) return 0;
+// Current month total expenses
+const currentMonthLabel = computed(() => {
+  if (selectedMonth.value === 'all') return 'All Months'
 
-  const diff =
-    currentMonthTotal.value - previousMonthTotal.value;
+  return new Date(
+    selectedYear.value,
+    selectedMonth.value
+  ).toLocaleString('default', {
+    month: 'long',
+    year: 'numeric'
+  })
+})
 
-  return Math.round((diff / previousMonthTotal.value) * 100);
-});
+// E. Category Insights
 
 // Top Category 
 const currentMonthTransactions = computed(() => {
@@ -767,23 +757,9 @@ const topCategories = computed(() => {
     .slice(0, 3);
 });
 
-const showTopCategories = ref(false);
-
-// Category aggregation (bar chart)
+/* 7. Chart Logic */
 const barCanvas = ref(null)
 let barChart = null
-
-const categoryColors = {
-  Food: '#FFCDD2',
-  Transportation: '#FFE0B2',
-  Shopping: '#FFF9C4',
-  Healthcare: '#DCEDC8',
-  Insurance: '#B3E5FC',
-  Utilities: '#E1BEE7',
-  Travel: '#F8BBD0',
-  Entertainment: '#B2DFDB',
-  Other: '#CFD8DC'
-}
 
 const categoryTotals = computed(() => {
   const map = {}
@@ -828,90 +804,123 @@ watch(categoryTotals, () => {
   })
 })
 
-// filteredTransactions : Derive a filtered list from transactions
-// Computed means it auto-updates when data or filter changes
+/* 8. Actions and Methods ( CRUD / UI ) */
 
-const filteredTransactions = computed(() => {
-  let result = transactions.value
+// Fetch both list and summary data at the same time to be faster
+const loadData = async () => {
+  try {
+    const [listRes, summaryRes] = await Promise.all([
+      fetch(`${API_BASE}/fetch.php`),
+      fetch(`${API_BASE}/summary.php`)
+    ]);
+    
+    // Convert the raw data from PHP into JavaScript objects
+    // Use .value to update a 'ref' variable in Vue
 
-  // Month + Year filter
-  if (selectedMonth.value !== 'all') {
-    result = result.filter(item => {
-      const d = new Date(item.transaction_date)
-      return (
-        d.getMonth() === selectedMonth.value &&
-        d.getFullYear() === selectedYear.value
-      )
+    transactions.value = await listRes.json();
+    summaryData.value = await summaryRes.json();
+
+  } catch (error) {
+    console.error("Failed to load data:", error);
+  }
+};
+
+// Send the 'form' data to PHP server to save it
+const submitForm = async () => {
+  try {
+    const response = await fetch(`${API_BASE}/create.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form.value)        // Turn the JS object into a text string
+    });
+
+    if (response.ok) {
+      
+      // Reset form and clear the form back to empty / defaults
+      form.value = { 
+        description: '', 
+        category: '',
+        amount: '', 
+        currency: 'MYR', 
+        transaction_date: new Date().toISOString().split('T')[0] 
+      };
+      
+      // Refresh the data so the new row appears in the table
+      await loadData();
+
+      triggerToast("Transaction saved successfully !");
+    }
+  } catch (err) {
+    alert("Check your PHP connection/CORS headers!");
+  }
+};
+
+// Delete a transaction
+const deleteTransaction = async (id) => {
+  // Ask for confirmation so the user doesn't delete by accident
+  if (!confirm("Are you sure you want to delete this?")) return;
+
+  try {
+    const response = await fetch(`${API_BASE}/delete.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: id })
+    });
+
+    if (response.ok) {
+      // Refresh the data to show the updated list and summary
+      await loadData();
+
+      triggerToast("Transaction deleted !");
+    }
+  } catch (err) {
+    console.error("Delete failed:", err);
+  }
+};
+
+// Editing a row
+const startInlineEdit = (item) => {
+  editingRowId.value = item.id
+
+  editBuffer.value = {
+    description: item.description,
+    category: item.category,          // Original is selected
+    amount: item.amount
+  }
+}
+
+// Save edited row
+const saveInlineEdit = async () => {
+  try {
+    const payload = {
+      id: editingRowId.value,
+      description: editBuffer.value.description,
+      category: editBuffer.value.category,
+      amount: editBuffer.value.amount
+    }
+
+    const res = await fetch(`${API_BASE}/update.php`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
     })
+
+    if (!res.ok) throw new Error('Update failed')
+
+    editingRowId.value = null
+    await loadData()
+
+    triggerToast('Transaction updated successfully !')
+  } catch (err) {
+    console.error(err)
+    alert('Failed to update transaction')
   }
+}
 
-  // Search filter
-  if (searchQuery.value) {
-    const keyword = searchQuery.value.toLowerCase()
-
-    result = result.filter(item =>
-      item.description.toLowerCase().includes(keyword) ||
-      item.category.toLowerCase().includes(keyword)
-    )
-  }
-
-  return result
-})
-
-// Create paginated computed list
-const paginatedTransactions = computed(() => {
-  const start = (currentPage.value - 1) * itemsPerPage;
-  const end = start + itemsPerPage;
-  return filteredTransactions.value.slice(start, end);
-});
-
-// Total pages pagination
-const totalPages = computed(() => {
-  return Math.ceil(filteredTransactions.value.length / itemsPerPage);
-});
-
-const pageNumbers = computed(() => {
-  return Array.from({ length: totalPages.value }, (_, i) => i + 1);
-});
-
-// Visible page numbers
-const visiblePages = computed(() => {
-  const pages = [];
-  const total = totalPages.value;
-  const current = currentPage.value;
-
-  if (total <= 7) {
-    // Show all pages
-    for (let i = 1; i <= total; i++) pages.push(i);
-    return pages;
-  }
-
-  // Always show first page
-  pages.push(1);
-
-  // Left ellipsis
-  if (current > 4) {
-    pages.push('...');
-  }
-
-  // Middle pages
-  const start = Math.max(2, current - 1);
-  const end = Math.min(total - 2, current + 1);
-
-  for (let i = start; i <= end; i++) {
-    pages.push(i);
-  }
-
-  // Right ellipsis
-  if (current < total - 3) {
-    pages.push('...');
-  }
-
-  // Always show last 2 pages
-  pages.push(total - 1, total);
-
-  return pages;
-});
+// Cancel editing
+const cancelInlineEdit = () => {
+  editingRowId.value = null
+}
 
 const getCategoryClass = (category) => {
   switch (category) {
@@ -985,11 +994,9 @@ const exportToCSV = () => {
   triggerToast("CSV Exported successfully !");
 };
 
-// --- TOAST STATE ---
-const showToast = ref(false);
-const toastMessage = ref('');
+/* 9. Helpers and Formatters */
 
-// Helper function to trigger the notification
+// Trigger the notification
 const triggerToast = (msg) => {
   toastMessage.value = msg;
   showToast.value = true;
@@ -1000,14 +1007,13 @@ const triggerToast = (msg) => {
   }, 3000);
 };
 
-// --- FORMATTERS ---
-// These functions don't change the data, they just make it look pretty for the user
 const formatDate = (d) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+
 const formatCurrency = (v) => parseFloat(v).toLocaleString(undefined, { minimumFractionDigits: 2 });
 
-// --- LIFECYCLE HOOK ---
-// This tells Vue that the moment this component is ready and run loadData
+/* 10. Lifecycle */
 onMounted(loadData);
+
 </script>
 
 <style scoped>
