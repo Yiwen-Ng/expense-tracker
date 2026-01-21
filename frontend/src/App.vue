@@ -151,11 +151,10 @@
             <!--span class="badge">{{ filteredTransactions.length }} Shown</span-->
           </div>
         </div>
-
         
         <div class="table-wrapper">
           <table class="data-table">
-            
+
             <thead>
               <tr>
                 <th>Date</th>
@@ -165,14 +164,16 @@
                 <th>Action</th>
               </tr>
             </thead>
-            
-            <tbody>
-              <tr v-for="item in filteredTransactions" :key="item.id">
+
+            <!-- TransitionGroup IS the tbody -->
+            <TransitionGroup tag="tbody" name="fade-slide">
+              <tr v-for="item in paginatedTransactions" :key="item.id">
+                
                 <td class="date-cell">{{ formatDate(item.transaction_date) }}</td>
                 <td class="desc-cell">{{ item.description }}</td>
+                
                 <td class="desc-cell">
-                  <span
-                    class="category-badge clickable"
+                  <span class="category-badge clickable"
                     :class="getCategoryClass(item.category)"
                     @click="filterByCategory(item.category)"
                     title="Filter by category"
@@ -180,9 +181,11 @@
                     {{ item.category }}
                   </span>
                 </td>
+                  
                 <td class="amount-cell" :class="item.amount >= 0 ? 'positive' : 'negative'">
                   {{ item.currency }} {{ formatCurrency(item.amount) }}
                 </td>
+                  
                 <td class="action-cell">
                   <button @click="deleteTransaction(item.id)" class="delete-btn" title="Delete Transaction">
                     <svg 
@@ -205,13 +208,54 @@
                   </button>
                 </td>
               </tr>
+
               <tr v-if="filteredTransactions.length === 0">
                 <td colspan="3" class="empty-state">No transactions found.</td>
               </tr>
-            </tbody>
-            
+            </TransitionGroup>           
           </table>
         </div>
+
+       <div class="pagination">
+        <!-- Previous -->
+        <button
+          class="page-btn icon-btn"
+          @click="currentPage--"
+          :disabled="currentPage === 1"
+          title="Previous page"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+
+        <!-- Page numbers -->
+          <button
+            v-for="page in visiblePages"
+            :key="page"
+            class="page-btn"
+            :class="{ active: page === currentPage, dots: page === '...' }"
+            :disabled="page === '...'"
+            @click="currentPage = page"
+          >
+            {{ page }}
+          </button>
+
+        <!-- Next -->
+        <button
+          class="page-btn icon-btn"
+          @click="currentPage++"
+          :disabled="currentPage === totalPages || totalPages === 0"
+          title="Next page"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
+
       </section>
     </div>
 
@@ -226,6 +270,7 @@
 <script setup>
 // Import necessary tools from Vue
 import { ref, onMounted, computed } from 'vue';
+import { watch } from 'vue';
 
 // --- API CONFIG ---
 const API_BASE = "http://localhost/expense-tracker/backend/api";
@@ -251,6 +296,15 @@ const filterRange = ref("all");
 
 // --- SEARCH STATE ---
 const searchQuery = ref('');
+
+// Pagination
+const currentPage = ref(1);
+const itemsPerPage = 5;
+
+// Reset page when page size changes
+watch([filterRange, searchQuery, transactions], () => {
+  currentPage.value = 1;
+});
 
 // --- FUNCTIONS ---
 // 'async'  : Functions happen in the background
@@ -357,6 +411,61 @@ const filteredTransactions = computed(() => {
   }
 
   return result;
+});
+
+// Create paginated computed list
+const paginatedTransactions = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage;
+  const end = start + itemsPerPage;
+  return filteredTransactions.value.slice(start, end);
+});
+
+// Total pages pagination
+const totalPages = computed(() => {
+  return Math.ceil(filteredTransactions.value.length / itemsPerPage);
+});
+
+const pageNumbers = computed(() => {
+  return Array.from({ length: totalPages.value }, (_, i) => i + 1);
+});
+
+// Visible page numbers
+const visiblePages = computed(() => {
+  const pages = [];
+  const total = totalPages.value;
+  const current = currentPage.value;
+
+  if (total <= 7) {
+    // Show all pages
+    for (let i = 1; i <= total; i++) pages.push(i);
+    return pages;
+  }
+
+  // Always show first page
+  pages.push(1);
+
+  // Left ellipsis
+  if (current > 4) {
+    pages.push('...');
+  }
+
+  // Middle pages
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 2, current + 1);
+
+  for (let i = start; i <= end; i++) {
+    pages.push(i);
+  }
+
+  // Right ellipsis
+  if (current < total - 3) {
+    pages.push('...');
+  }
+
+  // Always show last 2 pages
+  pages.push(total - 1, total);
+
+  return pages;
 });
 
 const getCategoryClass = (category) => {
@@ -651,6 +760,10 @@ select {
   font-weight: bold; 
 }
 
+.table-wrapper {
+  position: relative;
+}
+
 /* Ensure the heading doesn't push the badge away */
 .list-header h3 {
   margin: 0;
@@ -865,6 +978,86 @@ select {
 .export-btn svg {
   width: 24px;  
   height: 24px;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin-top: 16px;
+}
+
+/* Base pagination button */
+.page-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: none;
+  background: #e5e7eb;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease, transform 0.1s ease;
+}
+
+/* Page number active */
+.page-btn.active {
+  background: var(--accent-blue);
+  color: var(--dark-blue);
+  font-weight: 800;
+}
+
+.page-btn.dots {
+  cursor: default;
+  border: none;
+}
+
+.page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Hover */
+.page-btn:hover:not(:disabled):not(.active) {
+  background: #d1d5db;
+  transform: translateY(-1px);
+}
+
+/* Icon buttons (prev / next) */
+.icon-btn svg {
+  stroke-width: 2.2;
+}
+
+/* Disabled state */
+.page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Fade IN only */
+.fade-enter-active {
+  transition: opacity 0.35s ease;
+}
+
+.fade-enter-from {
+  opacity: 0;
+}
+
+.fade-enter-to {
+  opacity: 1;
+}
+
+/* Disable leave animation completely */
+.fade-leave-active,
+.fade-leave-from,
+.fade-leave-to {
+  transition: none !important;
+  opacity: 0;
 }
 
 /* Responsive adjustments */
