@@ -196,12 +196,27 @@
           <h3>Monthly Transactions</h3>
 
           <div style="display:flex; gap:12px; align-items:center;">
-            <!-- Filter dropdown -->
-            <select v-model="filterRange">
-              <option value="all">All</option>
-              <option value="today">Today</option>
-              <option value="7">Last 7 days</option>
-              <option value="30">Last 30 days</option>
+            <!-- Month filter dropdown -->
+            <select v-model="selectedMonth">
+              <option value="all">All Months</option>
+              <option
+                v-for="(m, index) in months"
+                :key="index"
+                :value="index"
+              >
+                {{ m }}
+              </option>
+            </select>
+
+            <!-- Year filter dropdown -->
+            <select v-model="selectedYear">
+              <option
+                v-for="y in availableYears"
+                :key="y"
+                :value="y"
+              >
+                {{ y }}
+              </option>
             </select>
 
             <button class="export-btn" @click="exportToCSV" title="Export CSV" aria-label="Export CSV">
@@ -367,21 +382,41 @@ const form = ref({
   transaction_date: new Date().toISOString().split('T')[0]    // Set the date input to 'today' by default
 });
 
-// --- FILTER STATE ---
-// Control how many recent days to show
-const filterRange = ref("all");
-
 // --- SEARCH STATE ---
 const searchQuery = ref('');
+
+// --- FILTER STATE ---
+// Month and year filter
+const selectedMonth = ref(new Date().getMonth())    // 0–11 or 'all'
+const selectedYear = ref(new Date().getFullYear())
+
+// Reset page when page size changes
+watch(
+  [selectedMonth, selectedYear, searchQuery, transactions],
+  () => {
+    currentPage.value = 1
+  }
+)
+
+const months = [
+  'Jan', 'Feb', 'Mar', 'Apr',
+  'May', 'Jun', 'Jul', 'Aug',
+  'Sep', 'Oct', 'Nov', 'Dec'
+]
+
+const availableYears = computed(() => {
+  const years = new Set()
+
+  transactions.value.forEach(tx => {
+    years.add(new Date(tx.transaction_date).getFullYear())
+  })
+
+  return Array.from(years).sort((a, b) => b - a)
+})
 
 // Pagination
 const currentPage = ref(1);
 const itemsPerPage = 5;
-
-// Reset page when page size changes
-watch([filterRange, searchQuery, transactions], () => {
-  currentPage.value = 1;
-});
 
 // --- FUNCTIONS ---
 // 'async'  : Functions happen in the background
@@ -463,46 +498,51 @@ const deleteTransaction = async (id) => {
 const now = new Date();
 
 const currentMonthLabel = computed(() => {
-  const now = new Date();
-  return now.toLocaleString('default', {
+  if (selectedMonth.value === 'all') return 'All Months'
+
+  return new Date(
+    selectedYear.value,
+    selectedMonth.value
+  ).toLocaleString('default', {
     month: 'long',
     year: 'numeric'
-  });
-});
+  })
+})
 
 // Total for current month
 const currentMonthTotal = computed(() => {
   return transactions.value
     .filter(tx => {
-      const d = new Date(tx.transaction_date);
-      return d.toLocaleString('default', {
-        month: 'long',
-        year: 'numeric'
-      }) === currentMonthLabel.value;
+      const d = new Date(tx.transaction_date)
+
+      return (
+        (selectedMonth.value === 'all' ||
+          d.getMonth() === selectedMonth.value) &&
+        d.getFullYear() === selectedYear.value
+      )
     })
-    .reduce((sum, tx) => sum + Number(tx.amount), 0);
-});
+    .reduce((sum, tx) => sum + Number(tx.amount), 0)
+})
 
 // Total for previous month (1 month before)
 const previousMonthTotal = computed(() => {
-  const prev = new Date();
-  prev.setMonth(prev.getMonth() - 1);
+  if (selectedMonth.value === 'all') return 0
 
-  const prevLabel = prev.toLocaleString('default', {
-    month: 'long',
-    year: 'numeric'
-  });
+  const prev = new Date(
+    selectedYear.value,
+    selectedMonth.value - 1
+  )
 
   return transactions.value
     .filter(tx => {
-      const d = new Date(tx.transaction_date);
-      return d.toLocaleString('default', {
-        month: 'long',
-        year: 'numeric'
-      }) === prevLabel;
+      const d = new Date(tx.transaction_date)
+      return (
+        d.getMonth() === prev.getMonth() &&
+        d.getFullYear() === prev.getFullYear()
+      )
     })
-    .reduce((sum, tx) => sum + Number(tx.amount), 0);
-});
+    .reduce((sum, tx) => sum + Number(tx.amount), 0)
+})
 
 // Previous months summary
 const previousMonths = computed(() => {
@@ -612,7 +652,7 @@ const topCategories = computed(() => {
 
 const showTopCategories = ref(false);
 
-// Category aggregation
+// Category aggregation (bar chart)
 const barCanvas = ref(null)
 let barChart = null
 
@@ -630,14 +670,14 @@ const categoryColors = {
 
 const categoryTotals = computed(() => {
   const map = {}
-  const now = new Date()
 
   transactions.value.forEach(t => {
     const d = new Date(t.transaction_date)
 
     if (
-      d.getMonth() === now.getMonth() &&
-      d.getFullYear() === now.getFullYear()
+      (selectedMonth.value === 'all' ||
+        d.getMonth() === selectedMonth.value) &&
+      d.getFullYear() === selectedYear.value
     ) {
       map[t.category] = (map[t.category] || 0) + Number(t.amount)
     }
@@ -647,6 +687,8 @@ const categoryTotals = computed(() => {
 })
 
 watch(categoryTotals, () => {
+  if (!barCanvas.value) return
+
   if (barChart) barChart.destroy()
 
   barChart = new Chart(barCanvas.value, {
@@ -664,19 +706,7 @@ watch(categoryTotals, () => {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false }
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          grace: '10%',        // Reduce unused top space
-          ticks: {
-            stepSize: 100,     // MYR 100, 200, 300
-            callback: v => `MYR ${v}`
-          }
-        }
-      }
+      plugins: { legend: { display: false } }
     }
   })
 })
@@ -685,32 +715,31 @@ watch(categoryTotals, () => {
 // Computed means it auto-updates when data or filter changes
 
 const filteredTransactions = computed(() => {
-  let result = transactions.value;
+  let result = transactions.value
 
-  // Date filter
-  if (filterRange.value !== "all") {
-    const days = parseInt(filterRange.value);
-    const now = new Date();
-
+  // Month + Year filter
+  if (selectedMonth.value !== 'all') {
     result = result.filter(item => {
-      const txDate = new Date(item.transaction_date);
-      const diffDays = (now - txDate) / (1000 * 60 * 60 * 24);
-      return diffDays <= days;
-    });
+      const d = new Date(item.transaction_date)
+      return (
+        d.getMonth() === selectedMonth.value &&
+        d.getFullYear() === selectedYear.value
+      )
+    })
   }
 
-  // Unified search (description + category)
+  // Search filter
   if (searchQuery.value) {
-    const keyword = searchQuery.value.toLowerCase();
+    const keyword = searchQuery.value.toLowerCase()
 
     result = result.filter(item =>
       item.description.toLowerCase().includes(keyword) ||
       item.category.toLowerCase().includes(keyword)
-    );
+    )
   }
 
-  return result;
-});
+  return result
+})
 
 // Create paginated computed list
 const paginatedTransactions = computed(() => {
@@ -1135,7 +1164,7 @@ h3 {
 }
 
 .input-field { 
-  display: flex; 
+  display: flex;
   flex-direction: column; 
   gap: 8px; 
 }
@@ -1172,8 +1201,9 @@ select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%234f566b' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 15px center;  
-  padding-right: 40px;                    
+  padding-right: 50px;                    
   cursor: pointer;
+  text-align: center;
 }
 
 /* Focus effect: When the user clicks into the box */
